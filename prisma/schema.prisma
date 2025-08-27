@@ -1,0 +1,618 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ============================================================================
+// AUTHENTICATION & USER MANAGEMENT
+// ============================================================================
+
+model Account {
+  id                String  @id @default(cuid())
+  userId            String  @map("user_id")
+  type              String
+  provider          String
+  providerAccountId String  @map("provider_account_id")
+  refresh_token     String? @db.Text
+  access_token      String? @db.Text
+  expires_at        Int?
+  token_type        String?
+  scope             String?
+  id_token          String? @db.Text
+  session_state     String?
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([provider, providerAccountId])
+  @@map("accounts")
+}
+
+model Session {
+  id           String   @id @default(cuid())
+  sessionToken String   @unique @map("session_token")
+  userId       String   @map("user_id")
+  expires      DateTime
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("sessions")
+}
+
+model User {
+  id            String    @id @default(cuid())
+  name          String?
+  email         String    @unique
+  emailVerified DateTime? @map("email_verified")
+  image         String?
+  createdAt     DateTime  @default(now()) @map("created_at")
+  updatedAt     DateTime  @updatedAt @map("updated_at")
+
+  // User preferences and settings
+  timezone   String? @default("UTC")
+  currency   String? @default("USD")
+  language   String? @default("en")
+  dateFormat String? @default("MM/DD/YYYY") @map("date_format")
+
+  // Subscription and billing
+  subscriptionStatus SubscriptionStatus @default(FREE) @map("subscription_status")
+  subscriptionPlan   String?            @map("subscription_plan")
+  subscriptionEndsAt DateTime?          @map("subscription_ends_at")
+
+  // Company information
+  companyName    String? @map("company_name")
+  companyEmail   String? @map("company_email")
+  companyPhone   String? @map("company_phone")
+  companyAddress String? @map("company_address")
+  companyWebsite String? @map("company_website")
+  companyLogo    String? @map("company_logo")
+
+  // Tax settings
+  taxRate   Decimal? @default(0) @map("tax_rate") @db.Decimal(5, 4)
+  taxNumber String?  @map("tax_number")
+
+  // Notification preferences
+  emailNotifications Boolean @default(true) @map("email_notifications")
+  pushNotifications  Boolean @default(false) @map("push_notifications")
+  smsNotifications   Boolean @default(false) @map("sms_notifications")
+
+  // Relations
+  accounts           Account[]
+  sessions           Session[]
+  workspaceMembers   WorkspaceMember[]
+  clients            Client[]
+  invoices           Invoice[]
+  templates          Template[]
+  payments           Payment[]
+  reminders          Reminder[]
+  activities         Activity[]
+  settings           UserSetting[]
+  analyticsSnapshots AnalyticsSnapshot[]
+  revenueTracking    RevenueTracking[]
+
+  @@map("users")
+}
+
+model VerificationToken {
+  identifier String
+  token      String
+  expires    DateTime
+
+  @@unique([identifier, token])
+  @@map("verificationtokens")
+}
+
+// ============================================================================
+// WORKSPACE MANAGEMENT
+// ============================================================================
+
+model Workspace {
+  id          String        @id @default(cuid())
+  name        String
+  type        WorkspaceType @default(PERSONAL)
+  description String?
+  avatar      String?
+
+  // Workspace settings
+  isDefault Boolean @default(false) @map("is_default")
+  isActive  Boolean @default(true) @map("is_active")
+
+  // Subscription information
+  subscriptionStatus SubscriptionStatus @default(FREE) @map("subscription_status")
+  subscriptionPlan   String?            @map("subscription_plan")
+  subscriptionEndsAt DateTime?          @map("subscription_ends_at")
+
+  // Timestamps
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  // Relations
+  members            WorkspaceMember[]
+  clients            Client[]
+  invoices           Invoice[]
+  templates          Template[]
+  payments           Payment[]
+  reminders          Reminder[]
+  activities         Activity[]
+  analyticsSnapshots AnalyticsSnapshot[]
+  revenueTracking    RevenueTracking[]
+
+  @@map("workspaces")
+}
+
+model WorkspaceMember {
+  id          String        @id @default(cuid())
+  workspaceId String        @map("workspace_id")
+  userId      String        @map("user_id")
+  role        WorkspaceRole @default(MEMBER)
+
+  // Timestamps
+  joinedAt  DateTime @default(now()) @map("joined_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  // Relations
+  workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([workspaceId, userId])
+  @@map("workspace_members")
+}
+
+// ============================================================================
+// CLIENT MANAGEMENT
+// ============================================================================
+
+model Client {
+  id          String @id @default(cuid())
+  userId      String @map("user_id")
+  workspaceId String @map("workspace_id")
+
+  // Basic information
+  name    String
+  email   String
+  phone   String?
+  website String?
+
+  // Address information
+  address String?
+  city    String?
+  state   String?
+  zipCode String? @map("zip_code")
+  country String? @default("US")
+
+  // Business information
+  companyName String? @map("company_name")
+  taxNumber   String? @map("tax_number")
+  notes       String? @db.Text
+
+  // Status and metadata
+  status ClientStatus @default(ACTIVE)
+  tags   String[] // Array of tags for categorization
+
+  // Timestamps
+  createdAt   DateTime  @default(now()) @map("created_at")
+  updatedAt   DateTime  @updatedAt @map("updated_at")
+  lastContact DateTime? @map("last_contact")
+
+  // Relations
+  user            User              @relation(fields: [userId], references: [id], onDelete: Cascade)
+  workspace       Workspace         @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  invoices        Invoice[]
+  payments        Payment[]
+  revenueTracking RevenueTracking[]
+
+  @@unique([userId, workspaceId, email])
+  @@map("clients")
+}
+
+// ============================================================================
+// INVOICE MANAGEMENT
+// ============================================================================
+
+model Invoice {
+  id         String  @id @default(cuid())
+  userId     String  @map("user_id")
+  clientId   String  @map("client_id")
+  workspaceId String @map("workspace_id")
+  templateId String? @map("template_id")
+
+  // Invoice details
+  invoiceNumber String  @unique @map("invoice_number")
+  title         String?
+  description   String? @db.Text
+
+  // Dates
+  issueDate DateTime  @default(now()) @map("issue_date")
+  dueDate   DateTime  @map("due_date")
+  paidDate  DateTime? @map("paid_date")
+
+  // Financial information
+  subtotal       Decimal @default(0) @db.Decimal(10, 2)
+  taxAmount      Decimal @default(0) @db.Decimal(10, 2)
+  discountAmount Decimal @default(0) @db.Decimal(10, 2)
+  total          Decimal @default(0) @db.Decimal(10, 2)
+
+  // Currency and tax
+  currency String  @default("USD")
+  taxRate  Decimal @default(0) @map("tax_rate") @db.Decimal(5, 4)
+
+  // Status and workflow
+  status        InvoiceStatus @default(DRAFT)
+  paymentStatus PaymentStatus @default(PENDING) @map("payment_status")
+
+  // Email and delivery
+  sentAt       DateTime? @map("sent_at")
+  viewedAt     DateTime? @map("viewed_at")
+  reminderSent Boolean   @default(false) @map("reminder_sent")
+
+  // Metadata
+  notes String?  @db.Text
+  terms String?  @db.Text
+  tags  String[]
+
+  // Timestamps
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  // Relations
+  user            User              @relation(fields: [userId], references: [id], onDelete: Cascade)
+  client          Client            @relation(fields: [clientId], references: [id])
+  workspace       Workspace         @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  template        Template?         @relation(fields: [templateId], references: [id])
+  lineItems       LineItem[]
+  payments        Payment[]
+  reminders       Reminder[]
+  activities      Activity[]
+  revenueTracking RevenueTracking[]
+
+  @@map("invoices")
+}
+
+model LineItem {
+  id        String @id @default(cuid())
+  invoiceId String @map("invoice_id")
+
+  // Item details
+  description String
+  quantity    Decimal @default(1) @db.Decimal(10, 2)
+  unitPrice   Decimal @map("unit_price") @db.Decimal(10, 2)
+  amount      Decimal @default(0) @db.Decimal(10, 2)
+
+  // Optional fields
+  sku   String?
+  unit  String? @default("item")
+  notes String?
+
+  // Timestamps
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  // Relations
+  invoice Invoice @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
+
+  @@map("line_items")
+}
+
+// ============================================================================
+// TEMPLATE MANAGEMENT
+// ============================================================================
+
+model Template {
+  id          String @id @default(cuid())
+  userId      String @map("user_id")
+  workspaceId String @map("workspace_id")
+
+  // Template details
+  name        String
+  description String?
+  category    String  @default("business")
+
+  // Design configuration
+  design   Json // Complete design configuration
+  branding Json? // Branding settings
+  layout   String @default("standard")
+
+  // Status
+  isDefault Boolean @default(false) @map("is_default")
+  isPublic  Boolean @default(false) @map("is_public")
+
+  // Metadata
+  tags String[]
+
+  // Timestamps
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  // Relations
+  user        User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  workspace   Workspace  @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  invoices    Invoice[]
+
+  @@map("templates")
+}
+
+// ============================================================================
+// PAYMENT MANAGEMENT
+// ============================================================================
+
+model Payment {
+  id        String @id @default(cuid())
+  invoiceId String @map("invoice_id")
+  clientId  String @map("client_id")
+  userId    String @map("user_id")
+  workspaceId String @map("workspace_id")
+
+  // Payment details
+  amount   Decimal       @db.Decimal(10, 2)
+  currency String        @default("USD")
+  method   PaymentMethod
+  status   PaymentStatus @default(PENDING)
+
+  // Transaction information
+  transactionId String? @map("transaction_id")
+  gateway       String? // Payment gateway used
+  gatewayData   Json?   @map("gateway_data") // Gateway-specific data
+
+  // Metadata
+  notes String?
+
+  // Timestamps
+  createdAt   DateTime  @default(now()) @map("created_at")
+  updatedAt   DateTime  @updatedAt @map("updated_at")
+  processedAt DateTime? @map("processed_at")
+
+  // Relations
+  invoice     Invoice    @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
+  client      Client     @relation(fields: [clientId], references: [id])
+  user        User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  workspace   Workspace  @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+
+  @@map("payments")
+}
+
+// ============================================================================
+// REMINDER & NOTIFICATION SYSTEM
+// ============================================================================
+
+model Reminder {
+  id        String @id @default(cuid())
+  invoiceId String @map("invoice_id")
+  userId    String @map("user_id")
+  workspaceId String @map("workspace_id")
+
+  // Reminder details
+  type        ReminderType
+  status      ReminderStatus @default(PENDING)
+  scheduledAt DateTime       @map("scheduled_at")
+  sentAt      DateTime?      @map("sent_at")
+
+  // Content
+  subject String?
+  message String? @db.Text
+
+  // Timestamps
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  // Relations
+  invoice     Invoice    @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
+  user        User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  workspace   Workspace  @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+
+  @@map("reminders")
+}
+
+// ============================================================================
+// ACTIVITY LOGGING & AUDIT TRAIL
+// ============================================================================
+
+model Activity {
+  id        String  @id @default(cuid())
+  userId    String  @map("user_id")
+  workspaceId String @map("workspace_id")
+  invoiceId String? @map("invoice_id")
+
+  // Activity details
+  type        ActivityType
+  action      String
+  description String?
+  metadata    Json?
+
+  // IP and user agent for security
+  ipAddress String? @map("ip_address")
+  userAgent String? @map("user_agent")
+
+  // Timestamps
+  createdAt DateTime @default(now()) @map("created_at")
+
+  // Relations
+  user        User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  workspace   Workspace  @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  invoice     Invoice?   @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
+
+  @@map("activities")
+}
+
+// ============================================================================
+// USER SETTINGS & PREFERENCES
+// ============================================================================
+
+model UserSetting {
+  id     String @id @default(cuid())
+  userId String @map("user_id")
+
+  // Setting details
+  key      String
+  value    String
+  category String @default("general")
+
+  // Timestamps
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  // Relations
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, key])
+  @@map("user_settings")
+}
+
+// ============================================================================
+// ANALYTICS & REPORTING
+// ============================================================================
+
+model AnalyticsSnapshot {
+  id          String @id @default(cuid())
+  userId      String @map("user_id")
+  workspaceId String @map("workspace_id")
+
+  // Snapshot details
+  date   DateTime @db.Date
+  period String // "daily", "weekly", "monthly"
+
+  // Metrics
+  totalRevenue    Decimal @default(0) @db.Decimal(10, 2)
+  totalInvoices   Int     @default(0)
+  totalClients    Int     @default(0)
+  paidInvoices    Int     @default(0)
+  pendingInvoices Int     @default(0)
+  overdueInvoices Int     @default(0)
+
+  // Growth metrics (compared to previous period)
+  revenueGrowth Decimal? @db.Decimal(5, 4) // percentage
+  invoiceGrowth Decimal? @db.Decimal(5, 4)
+  clientGrowth  Decimal? @db.Decimal(5, 4)
+
+  // Timestamps
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  // Relations
+  user        User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  workspace   Workspace  @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, workspaceId, date, period])
+  @@map("analytics_snapshots")
+}
+
+model RevenueTracking {
+  id          String @id @default(cuid())
+  userId      String @map("user_id")
+  workspaceId String @map("workspace_id")
+
+  // Revenue details
+  date     DateTime @db.Date
+  amount   Decimal  @db.Decimal(10, 2)
+  currency String   @default("USD")
+  source   String // "invoice_payment", "subscription", etc.
+
+  // Metadata
+  invoiceId String? @map("invoice_id")
+  clientId  String? @map("client_id")
+  notes     String?
+
+  // Timestamps
+  createdAt DateTime @default(now()) @map("created_at")
+
+  // Relations
+  user        User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  workspace   Workspace  @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  invoice     Invoice?   @relation(fields: [invoiceId], references: [id], onDelete: SetNull)
+  client      Client?    @relation(fields: [clientId], references: [id], onDelete: SetNull)
+
+  @@map("revenue_tracking")
+}
+
+// ============================================================================
+// ENUMS
+// ============================================================================
+
+enum InvoiceStatus {
+  DRAFT
+  SENT
+  VIEWED
+  PAID
+  OVERDUE
+  CANCELLED
+  REFUNDED
+}
+
+enum PaymentStatus {
+  PENDING
+  PROCESSING
+  COMPLETED
+  FAILED
+  CANCELLED
+  REFUNDED
+}
+
+enum PaymentMethod {
+  CREDIT_CARD
+  BANK_TRANSFER
+  PAYPAL
+  STRIPE
+  CASH
+  CHECK
+  OTHER
+}
+
+enum ClientStatus {
+  ACTIVE
+  INACTIVE
+  ARCHIVED
+}
+
+enum SubscriptionStatus {
+  FREE
+  BASIC
+  PRO
+  ENTERPRISE
+  CANCELLED
+  EXPIRED
+}
+
+enum ReminderType {
+  DUE_DATE
+  OVERDUE
+  FOLLOW_UP
+  CUSTOM
+}
+
+enum ReminderStatus {
+  PENDING
+  SENT
+  FAILED
+  CANCELLED
+}
+
+enum ActivityType {
+  INVOICE_CREATED
+  INVOICE_UPDATED
+  INVOICE_SENT
+  INVOICE_PAID
+  CLIENT_CREATED
+  CLIENT_UPDATED
+  PAYMENT_RECEIVED
+  TEMPLATE_CREATED
+  USER_LOGIN
+  USER_LOGOUT
+  SETTINGS_UPDATED
+}
+
+enum WorkspaceType {
+  PERSONAL
+  TEAM
+  ENTERPRISE
+}
+
+enum WorkspaceRole {
+  OWNER
+  ADMIN
+  MEMBER
+  VIEWER
+}

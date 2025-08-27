@@ -1,36 +1,185 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Linea - Invoice Management System
+
+A modern, full-featured invoice management system built with Next.js, Prisma, PostgreSQL, and powered by [Rube MCP](https://rube.composio.dev) by [Composio](https://composio.dev) for MCP based development. Manage your clients, create professional invoices, track payments, and gain insights into your business performance.
+
+## Features
+
+- **📊 Dashboard** - Real-time analytics and business insights
+- **📄 Invoice Management** - Create, send, and track invoices
+- **👥 Client Management** - Organize and manage client relationships
+- **🎨 Invoice Templates** - Professional, customizable invoice templates
+- **💳 Payment Tracking** - Monitor payment status and history
+- **🔔 Automated Reminders** - Send payment reminders automatically
+- **🏢 Multi-workspace Support** - Manage multiple businesses or teams
+- **📱 Responsive Design** - Works perfectly on desktop and mobile
+- **🔐 Secure Authentication** - Email-based authentication with NextAuth.js
+
+## Tech Stack
+
+- **Frontend**: Next.js 15, React 19, TypeScript, Tailwind CSS
+- **Backend**: Next.js API Routes, Prisma ORM
+- **Database**: PostgreSQL
+- **Authentication**: NextAuth.js
+- **UI Components**: Radix UI, Lucide Icons
+- **Charts**: Recharts
+- **PDF Generation**: @react-pdf/renderer
+- **Email**: Nodemailer (Gmail SMTP)
 
 ## Getting Started
 
-First, run the development server:
+### Prerequisites
 
-```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+- Node.js 18+ 
+- PostgreSQL database
+- npm, yarn, or bun
+
+### Installation
+
+1. **Clone the repository**
+   ```bash
+   git clone https://github.com/rohittcodes/linea.git
+   cd linea
+   ```
+
+2. **Install dependencies**
+   ```bash
+   npm install
+   # or
+   yarn install
+   # or
+   bun install
+   ```
+
+3. **Set up environment variables**
+   
+   Create a `.env.local` file in the root directory with the following variables:
+   ```env
+   # Database
+   DATABASE_URL="postgresql://your-username:your-password@your-host:5432/your-database"
+   
+   # Application Base URL
+   NEXT_PUBLIC_BASE_URL="http://localhost:3001"
+   
+   # NextAuth.js
+   NEXTAUTH_URL="http://localhost:3001"
+   NEXTAUTH_SECRET="your-nextauth-secret-key-here"
+   
+   # Email Configuration (for NextAuth email provider)
+   EMAIL_SERVER_USER="your-email@gmail.com"
+   EMAIL_SERVER_PASSWORD="your-app-password"
+   EMAIL_FROM="noreply@yourdomain.com"
+   ```
+
+4. **Set up the database**
+   ```bash
+   # Push the schema to your database
+   npx prisma db push
+   
+   # Generate Prisma client
+   npx prisma generate
+   ```
+
+5. **Run the development server**
+   ```bash
+   npm run dev
+   # or
+   yarn dev
+   # or
+   bun dev
+   ```
+
+6. **Open your browser**
+   
+   Navigate to [http://localhost:3001](http://localhost:3001) to see the application.
+
+### First Time Setup
+
+1. **Sign up**: Visit the login page and enter your email address
+2. **Verify email**: Check your email for the verification link
+3. **Complete setup**: You'll be redirected to create your first workspace
+4. **Add clients**: Start by adding your first client
+5. **Create invoices**: Create and send your first invoice
+
+## Project Structure
+
+```
+src/
+├── app/                    # Next.js App Router
+│   ├── (auth)/            # Authentication pages
+│   ├── (dashboard)/       # Dashboard pages
+│   ├── api/               # API routes
+│   └── layout.tsx         # Root layout
+├── components/            # React components
+│   ├── ui/               # Reusable UI components
+│   ├── invoices/         # Invoice-related components
+│   ├── clients/          # Client-related components
+│   └── templates/        # Template-related components
+├── lib/                  # Utility libraries
+│   ├── auth.ts           # NextAuth configuration
+│   ├── db.ts             # Database utilities
+│   └── utils.ts          # General utilities
+└── types/                # TypeScript type definitions
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+## Database Schema
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+The application uses a comprehensive database schema with the following main entities:
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+- **Users** - User accounts and preferences
+- **Workspaces** - Multi-tenant workspace support
+- **Clients** - Client information and relationships
+- **Invoices** - Invoice data and line items
+- **Templates** - Invoice template designs
+- **Payments** - Payment tracking and history
+- **Analytics** - Business metrics and reporting
 
-## Learn More
+## Available Scripts
 
-To learn more about Next.js, take a look at the following resources:
+- `npm run dev` - Start development server
+- `npm run build` - Build for production
+- `npm run start` - Start production server
+- `npm run lint` - Run linting
+- `npm run format` - Format code
+- `npm run db:generate` - Generate Prisma client
+- `npm run db:push` - Push schema to database
+- `npm run db:migrate` - Run database migrations
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+## Deployment
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+### Vercel (Recommended)
 
-## Deploy on Vercel
+1. Push your code to GitHub
+2. Connect your repository to Vercel
+3. Add environment variables in Vercel dashboard
+4. Deploy!
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+### Other Platforms
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+The application can be deployed to any platform that supports Next.js:
+
+- Netlify
+- Railway
+- DigitalOcean App Platform
+- AWS Amplify
+
+## Contributing
+
+1. Fork the repository
+2. Create a feature branch
+3. Make your changes
+4. Add tests if applicable
+5. Submit a pull request
+
+## License
+
+This project is licensed under the MIT License.
+
+## Support
+
+If you encounter any issues or have questions, please:
+
+1. Check the [Issues](https://github.com/rohittcodes/linea/issues) page
+2. Create a new issue with detailed information
+3. Join our community discussions
+
+---
