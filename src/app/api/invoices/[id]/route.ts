@@ -14,7 +14,28 @@ export async function GET(
     }
 
     const { id } = await params
-    const invoice = await getInvoice(id, session.user.id)
+    
+    // Get user's active workspace
+    const userWorkspace = await prisma.workspace.findFirst({
+      where: {
+        members: {
+          some: {
+            userId: session.user.id,
+            role: { in: ['OWNER', 'ADMIN', 'MEMBER'] }
+          }
+        },
+        isActive: true
+      }
+    })
+
+    if (!userWorkspace) {
+      return NextResponse.json(
+        { error: 'No active workspace found' },
+        { status: 400 }
+      )
+    }
+
+    const invoice = await getInvoice(id, session.user.id, userWorkspace.id)
     
     if (!invoice) {
       return NextResponse.json({ error: 'Invoice not found' }, { status: 404 })
@@ -60,6 +81,26 @@ export async function PUT(
       }
     }
 
+    // Get user's active workspace
+    const userWorkspace = await prisma.workspace.findFirst({
+      where: {
+        members: {
+          some: {
+            userId: session.user.id,
+            role: { in: ['OWNER', 'ADMIN', 'MEMBER'] }
+          }
+        },
+        isActive: true
+      }
+    })
+
+    if (!userWorkspace) {
+      return NextResponse.json(
+        { error: 'No active workspace found' },
+        { status: 400 }
+      )
+    }
+
     const updateData = isStatusUpdate 
       ? { status: body.status }
       : {
@@ -76,24 +117,11 @@ export async function PUT(
           status: body.status
         };
 
-    const result = await updateInvoice(id, session.user.id, updateData)
+    const result = await updateInvoice(id, session.user.id, userWorkspace.id, updateData)
 
     if (result.count === 0) {
       return NextResponse.json({ error: 'Invoice not found' }, { status: 404 })
     }
-
-    // Get user's active workspace for logging
-    const userWorkspace = await prisma.workspace.findFirst({
-      where: {
-        members: {
-          some: {
-            userId: session.user.id,
-            role: { in: ['OWNER', 'ADMIN', 'MEMBER'] }
-          }
-        },
-        isActive: true
-      }
-    })
 
     // Log activity
     if (userWorkspace) {
@@ -137,20 +165,7 @@ export async function DELETE(
 
     const { id } = await params
 
-    // Get invoice info before deletion for logging
-    const invoice = await getInvoice(id, session.user.id)
-    
-    if (!invoice) {
-      return NextResponse.json({ error: 'Invoice not found' }, { status: 404 })
-    }
-
-    const result = await deleteInvoice(id, session.user.id)
-
-    if (result.count === 0) {
-      return NextResponse.json({ error: 'Invoice not found' }, { status: 404 })
-    }
-
-    // Get user's active workspace for logging
+    // Get user's active workspace
     const userWorkspace = await prisma.workspace.findFirst({
       where: {
         members: {
@@ -162,6 +177,26 @@ export async function DELETE(
         isActive: true
       }
     })
+
+    if (!userWorkspace) {
+      return NextResponse.json(
+        { error: 'No active workspace found' },
+        { status: 400 }
+      )
+    }
+
+    // Get invoice info before deletion for logging
+    const invoice = await getInvoice(id, session.user.id, userWorkspace.id)
+    
+    if (!invoice) {
+      return NextResponse.json({ error: 'Invoice not found' }, { status: 404 })
+    }
+
+    const result = await deleteInvoice(id, session.user.id, userWorkspace.id)
+
+    if (result.count === 0) {
+      return NextResponse.json({ error: 'Invoice not found' }, { status: 404 })
+    }
 
     // Log activity (without invoiceId since invoice is deleted)
     if (userWorkspace) {
@@ -200,26 +235,33 @@ export async function PATCH(
     const { id } = await params
     const body = await request.json()
     
+    // Get user's active workspace
+    const userWorkspace = await prisma.workspace.findFirst({
+      where: {
+        members: {
+          some: {
+            userId: session.user.id,
+            role: { in: ['OWNER', 'ADMIN', 'MEMBER'] }
+          }
+        },
+        isActive: true
+      }
+    })
+
+    if (!userWorkspace) {
+      return NextResponse.json(
+        { error: 'No active workspace found' },
+        { status: 400 }
+      )
+    }
+    
     // Handle different actions
     if (body.action === 'send') {
-      const result = await sendInvoice(id, session.user.id)
+      const result = await sendInvoice(id, session.user.id, userWorkspace.id)
       
       if (result.count === 0) {
         return NextResponse.json({ error: 'Invoice not found' }, { status: 404 })
       }
-
-      // Get user's active workspace for logging
-      const userWorkspace = await prisma.workspace.findFirst({
-        where: {
-          members: {
-            some: {
-              userId: session.user.id,
-              role: { in: ['OWNER', 'ADMIN', 'MEMBER'] }
-            }
-          },
-          isActive: true
-        }
-      })
 
       // Log activity
       if (userWorkspace) {

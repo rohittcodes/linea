@@ -1,9 +1,11 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import { useQuery } from "@tanstack/react-query";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { Skeleton } from "@/components/ui/skeleton";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { RevenueChart } from "@/components/charts/RevenueChart";
 import {
@@ -17,6 +19,15 @@ import {
   AlertCircle,
 } from "lucide-react";
 import { toast } from "sonner";
+
+async function fetchDashboardData() {
+  const response = await fetch('/api/dashboard');
+  if (!response.ok) {
+    throw new Error('Failed to fetch dashboard data');
+  }
+  const data = await response.json();
+  return data.data;
+}
 
 interface DashboardStats {
   totalInvoices: number;
@@ -41,9 +52,6 @@ interface DashboardPageProps {
 }
 
 export default function DashboardPage({ params }: DashboardPageProps) {
-  const [stats, setStats] = useState<DashboardStats | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
   const [workspaceId, setWorkspaceId] = useState<string | null>(null);
 
   useEffect(() => {
@@ -54,28 +62,12 @@ export default function DashboardPage({ params }: DashboardPageProps) {
     getWorkspaceId();
   }, [params]);
 
-  useEffect(() => {
-    if (workspaceId) {
-      fetchDashboardData();
-    }
-  }, [workspaceId]);
-
-  const fetchDashboardData = async () => {
-    try {
-      setLoading(true);
-      const response = await fetch('/api/dashboard');
-      if (!response.ok) {
-        throw new Error('Failed to fetch dashboard data');
-      }
-      const data = await response.json();
-      setStats(data.data);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'An error occurred');
-      toast.error('Failed to load dashboard data');
-    } finally {
-      setLoading(false);
-    }
-  };
+  const { data: stats, isLoading: loading, error } = useQuery<DashboardStats>({
+    queryKey: ['dashboard', workspaceId],
+    queryFn: fetchDashboardData,
+    enabled: !!workspaceId,
+    retry: 1,
+  });
 
   const formatCurrency = (amount: number) => {
     return new Intl.NumberFormat('en-US', {
@@ -94,11 +86,32 @@ export default function DashboardPage({ params }: DashboardPageProps) {
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center min-h-[400px]">
-        <div className="flex items-center space-x-2">
-          <Loader2 className="w-6 h-6 animate-spin" />
-          <span>Loading dashboard...</span>
+      <div className="space-y-6">
+        {/* Stats Cards Shimmer */}
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+          {[1, 2, 3, 4].map((i) => (
+            <Card key={i}>
+              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                <Skeleton className="h-4 w-24" />
+                <Skeleton className="h-4 w-4 rounded" />
+              </CardHeader>
+              <CardContent>
+                <Skeleton className="h-8 w-32 mb-2" />
+                <Skeleton className="h-3 w-40" />
+              </CardContent>
+            </Card>
+          ))}
         </div>
+        {/* Chart Shimmer */}
+        <Card>
+          <CardHeader>
+            <Skeleton className="h-6 w-48" />
+            <Skeleton className="h-4 w-64 mt-2" />
+          </CardHeader>
+          <CardContent>
+            <Skeleton className="h-[300px] w-full" />
+          </CardContent>
+        </Card>
       </div>
     );
   }
@@ -109,8 +122,8 @@ export default function DashboardPage({ params }: DashboardPageProps) {
         <div className="text-center">
           <AlertCircle className="w-12 h-12 text-red-500 mx-auto mb-4" />
           <h3 className="text-lg font-semibold text-gray-900 mb-2">Error Loading Dashboard</h3>
-          <p className="text-gray-600 mb-4">{error || 'Failed to load dashboard data'}</p>
-          <Button onClick={fetchDashboardData} variant="outline">
+          <p className="text-gray-600 mb-4">{error instanceof Error ? error.message : 'Failed to load dashboard data'}</p>
+          <Button onClick={() => window.location.reload()} variant="outline">
             Try Again
           </Button>
         </div>

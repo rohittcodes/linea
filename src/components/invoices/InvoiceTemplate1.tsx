@@ -2,7 +2,6 @@
 
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Separator } from "@/components/ui/separator";
 
 interface InvoiceItem {
   description: string;
@@ -82,114 +81,82 @@ export function InvoiceTemplate1({ data }: InvoiceTemplate1Props) {
   };
 
   return (
-    <Card className="w-full max-w-4xl mx-auto shadow-lg border-0 rounded-[32px] bg-white">
-      <CardHeader className="p-8">
-        <div className="flex justify-between items-start mb-6">
-          <div className="space-y-2">
-            <h1 className="text-3xl font-bold text-gray-900">INVOICE</h1>
-            <p className="text-lg text-gray-600">#{invoiceData.invoiceNumber}</p>
-          </div>
-          <Badge
-            className={`px-4 py-2 text-sm font-medium rounded-lg ${getStatusColor(invoiceData.status)}`}
-          >
-            {invoiceData.status.toUpperCase()}
-          </Badge>
+    <Card className="w-full max-w-4xl mx-auto shadow-lg border-0 rounded-[24px] bg-white">
+      <CardHeader className="p-8 pb-6">
+        <div className="text-center mb-4">
+          <h1 className="text-4xl font-extrabold tracking-tight text-gray-900">Invoice</h1>
+          <p className="text-gray-500 mt-1">#{invoiceData.invoiceNumber}</p>
         </div>
-
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-          <div className="space-y-4">
-            <div>
-              <h3 className="text-sm font-medium text-gray-500 mb-2">FROM</h3>
-              <div className="space-y-1">
-                <p className="font-semibold text-gray-900">
-                  {invoiceData.company.name}
-                </p>
-                <p className="text-gray-600">{invoiceData.company.address}</p>
-                <p className="text-gray-600">{invoiceData.company.email}</p>
-                <p className="text-gray-600">{invoiceData.company.phone}</p>
-              </div>
-            </div>
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+          <div className="rounded-lg border p-4 bg-gray-50">
+            <h3 className="text-xs font-semibold text-gray-500 uppercase">From</h3>
+            <p className="mt-2 font-semibold text-gray-900">{invoiceData.company.name}</p>
+            <p className="text-gray-600 text-sm">{invoiceData.company.address}</p>
+            <p className="text-gray-600 text-sm">{invoiceData.company.email}</p>
+            <p className="text-gray-600 text-sm">{invoiceData.company.phone}</p>
           </div>
-
-          <div className="space-y-4">
-            <div>
-              <h3 className="text-sm font-medium text-gray-500 mb-2">TO</h3>
-              <div className="space-y-1">
-                <p className="font-semibold text-gray-900">
-                  {invoiceData.client.name}
-                </p>
-                <p className="text-gray-600">{invoiceData.client.address}</p>
-                <p className="text-gray-600">{invoiceData.client.email}</p>
-              </div>
+          <div className="rounded-lg border p-4">
+            <h3 className="text-xs font-semibold text-gray-500 uppercase">Bill To</h3>
+            <p className="mt-2 font-semibold text-gray-900">{invoiceData.client.name}</p>
+            <p className="text-gray-600 text-sm">{invoiceData.client.address}</p>
+            <p className="text-gray-600 text-sm">{invoiceData.client.email}</p>
+          </div>
+          <div className="rounded-lg p-4 bg-gray-900 text-white">
+            <div className="flex items-center justify-between">
+              <span className="text-xs uppercase tracking-wide opacity-80">Status</span>
+              <Badge className={`px-3 py-1 text-xs font-medium rounded ${getStatusColor(invoiceData.status)}`}>{invoiceData.status.toUpperCase()}</Badge>
             </div>
-
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-2 gap-4 mt-4 text-sm">
               <div>
-                <h3 className="text-sm font-medium text-gray-500 mb-2">DATE</h3>
-                <p className="text-gray-900">{invoiceData.date}</p>
+                <div className="opacity-80">Issue Date</div>
+                <div className="font-semibold">{invoiceData.date}</div>
               </div>
               <div>
-                <h3 className="text-sm font-medium text-gray-500 mb-2">
-                  DUE DATE
-                </h3>
-                <p className="text-gray-900">{invoiceData.dueDate}</p>
+                <div className="opacity-80">Due Date</div>
+                <div className="font-semibold">{invoiceData.dueDate}</div>
               </div>
             </div>
           </div>
         </div>
       </CardHeader>
 
-      <CardContent className="p-8 pt-0">
-        <div className="space-y-6">
-          <div className="overflow-x-auto">
-            <table className="w-full">
-              <thead>
-                <tr className="border-b border-gray-200">
-                  <th className="text-left py-4 text-sm font-medium text-gray-500">
-                    DESCRIPTION
-                  </th>
-                  <th className="text-right py-4 text-sm font-medium text-gray-500">
-                    QTY
-                  </th>
-                  <th className="text-right py-4 text-sm font-medium text-gray-500">
-                    RATE
-                  </th>
-                  <th className="text-right py-4 text-sm font-medium text-gray-500">
-                    AMOUNT
-                  </th>
+      <CardContent className="px-8 pb-8">
+        <div className="overflow-hidden rounded-lg border">
+          <table className="w-full">
+            <thead>
+              <tr className="bg-gray-50">
+                <th className="text-left py-3 px-4 text-xs font-semibold text-gray-600 uppercase">Description</th>
+                <th className="text-right py-3 px-4 text-xs font-semibold text-gray-600 uppercase">Qty</th>
+                <th className="text-right py-3 px-4 text-xs font-semibold text-gray-600 uppercase">Rate</th>
+                <th className="text-right py-3 px-4 text-xs font-semibold text-gray-600 uppercase">Amount</th>
+              </tr>
+            </thead>
+            <tbody>
+              {invoiceData.items.map((item, index) => (
+                <tr key={index} className={index % 2 === 0 ? "bg-white" : "bg-gray-50"}>
+                  <td className="py-3 px-4 text-gray-900">{item.description}</td>
+                  <td className="py-3 px-4 text-right text-gray-900">{item.quantity}</td>
+                  <td className="py-3 px-4 text-right text-gray-900">${item.rate.toFixed(2)}</td>
+                  <td className="py-3 px-4 text-right text-gray-900">${item.amount.toFixed(2)}</td>
                 </tr>
-              </thead>
-              <tbody>
-                {invoiceData.items.map((item, index) => (
-                  <tr key={index} className="border-b border-gray-100">
-                    <td className="py-4 text-gray-900">{item.description}</td>
-                    <td className="py-4 text-right text-gray-900">
-                      {item.quantity}
-                    </td>
-                    <td className="py-4 text-right text-gray-900">
-                      ${item.rate.toFixed(2)}
-                    </td>
-                    <td className="py-4 text-right text-gray-900">
-                      ${item.amount.toFixed(2)}
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+              ))}
+            </tbody>
+          </table>
+        </div>
 
-          <div className="flex justify-end">
-            <div className="w-64 space-y-2">
+        <div className="mt-6 grid grid-cols-1 md:grid-cols-3 gap-6">
+          <div className="md:col-start-3">
+            <div className="rounded-lg border p-4 space-y-2">
               <div className="flex justify-between text-sm">
-                <span className="text-gray-600">Subtotal:</span>
+                <span className="text-gray-600">Subtotal</span>
                 <span className="text-gray-900">${invoiceData.subtotal.toFixed(2)}</span>
               </div>
               <div className="flex justify-between text-sm">
-                <span className="text-gray-600">Tax:</span>
+                <span className="text-gray-600">Tax</span>
                 <span className="text-gray-900">${invoiceData.tax.toFixed(2)}</span>
               </div>
-              <div className="flex justify-between text-lg font-semibold border-t pt-2">
-                <span className="text-gray-900">Total:</span>
+              <div className="flex justify-between text-lg font-semibold pt-2 border-t">
+                <span className="text-gray-900">Total</span>
                 <span className="text-gray-900">${invoiceData.total.toFixed(2)}</span>
               </div>
             </div>

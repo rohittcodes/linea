@@ -1,12 +1,14 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState } from "react";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
+import { Skeleton } from "@/components/ui/skeleton";
 import { ClientForm } from "@/components/clients/ClientForm";
 import {
   Users,
@@ -19,7 +21,6 @@ import {
   Edit,
   Trash2,
   Eye,
-  Loader2,
   AlertCircle,
 } from "lucide-react";
 import {
@@ -60,56 +61,38 @@ interface ClientsResponse {
   };
 }
 
+async function fetchClientsData(searchTerm: string, filterStatus: string) {
+  const params = new URLSearchParams();
+  if (searchTerm) params.append('search', searchTerm);
+  if (filterStatus !== 'all') params.append('status', filterStatus);
+  
+  const response = await fetch(`/api/clients?${params.toString()}`);
+  if (!response.ok) {
+    throw new Error('Failed to fetch clients');
+  }
+  
+  const data: ClientsResponse = await response.json();
+  return data.data || { clients: [], total: 0 };
+}
+
 export default function ClientsPage() {
-  const [clients, setClients] = useState<Client[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+  const queryClient = useQueryClient();
   const [searchTerm, setSearchTerm] = useState("");
   const [filterStatus, setFilterStatus] = useState("all");
-  const [totalClients, setTotalClients] = useState(0);
-  const [activeClients, setActiveClients] = useState(0);
-  const [inactiveClients, setInactiveClients] = useState(0);
-  const [archivedClients, setArchivedClients] = useState(0);
   const [showForm, setShowForm] = useState(false);
   const [editingClient, setEditingClient] = useState<Client | null>(null);
 
-  useEffect(() => {
-    fetchClients();
-  }, [searchTerm, filterStatus]);
+  const { data: clientsData, isLoading: loading, error } = useQuery({
+    queryKey: ['clients', searchTerm, filterStatus],
+    queryFn: () => fetchClientsData(searchTerm, filterStatus),
+    retry: 1,
+  });
 
-  const fetchClients = async () => {
-    try {
-      setLoading(true);
-      const params = new URLSearchParams();
-      if (searchTerm) params.append('search', searchTerm);
-      if (filterStatus !== 'all') params.append('status', filterStatus);
-      
-      const response = await fetch(`/api/clients?${params.toString()}`);
-      if (!response.ok) {
-        throw new Error('Failed to fetch clients');
-      }
-      
-      const data: ClientsResponse = await response.json();
-      const clients = data.data?.clients || [];
-      const total = data.data?.total || 0;
-      
-      setClients(clients);
-      setTotalClients(total);
-      
-      // Calculate status counts
-      const active = clients.filter((c: Client) => c.status === 'ACTIVE').length;
-      const inactive = clients.filter((c: Client) => c.status === 'INACTIVE').length;
-      const archived = clients.filter((c: Client) => c.status === 'ARCHIVED').length;
-      
-      setActiveClients(active);
-      setInactiveClients(inactive);
-      setArchivedClients(archived);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'An error occurred');
-    } finally {
-      setLoading(false);
-    }
-  };
+  const clients = clientsData?.clients || [];
+  const totalClients = clientsData?.total || 0;
+  const activeClients = clients.filter((c: Client) => c.status === 'ACTIVE').length;
+  const inactiveClients = clients.filter((c: Client) => c.status === 'INACTIVE').length;
+  const archivedClients = clients.filter((c: Client) => c.status === 'ARCHIVED').length;
 
   const getStatusColor = (status: string) => {
     switch (status) {
@@ -132,10 +115,8 @@ export default function ClientsPage() {
     });
   };
 
-  const handleDeleteClient = async (clientId: string) => {
-    if (!confirm('Are you sure you want to delete this client?')) return;
-    
-    try {
+  const deleteClientMutation = useMutation({
+    mutationFn: async (clientId: string) => {
       const response = await fetch(`/api/clients/${clientId}`, {
         method: 'DELETE',
       });
@@ -143,18 +124,18 @@ export default function ClientsPage() {
       if (!response.ok) {
         throw new Error('Failed to delete client');
       }
-      
+    },
+    onSuccess: () => {
       toast.success('Client deleted successfully');
-      // Refresh the clients list
-      fetchClients();
-    } catch (err) {
-      console.error('Error deleting client:', err);
+      queryClient.invalidateQueries({ queryKey: ['clients'] });
+    },
+    onError: () => {
       toast.error('Failed to delete client');
-    }
-  };
+    },
+  });
 
-  const handleCreateClient = async (clientData: any) => {
-    try {
+  const createClientMutation = useMutation({
+    mutationFn: async (clientData: any) => {
       const response = await fetch('/api/clients', {
         method: 'POST',
         headers: {
@@ -168,20 +149,21 @@ export default function ClientsPage() {
         throw new Error(errorData.error || 'Failed to create client');
       }
 
+      return response.json();
+    },
+    onSuccess: () => {
       toast.success('Client created successfully');
       setShowForm(false);
-      fetchClients(); // Refresh the list
-    } catch (err) {
-      console.error('Error creating client:', err);
-      toast.error(err instanceof Error ? err.message : 'Failed to create client');
-    }
-  };
+      queryClient.invalidateQueries({ queryKey: ['clients'] });
+    },
+    onError: (err: Error) => {
+      toast.error(err.message || 'Failed to create client');
+    },
+  });
 
-  const handleEditClient = async (clientData: any) => {
-    if (!editingClient) return;
-    
-    try {
-      const response = await fetch(`/api/clients/${editingClient.id}`, {
+  const updateClientMutation = useMutation({
+    mutationFn: async ({ clientId, clientData }: { clientId: string; clientData: any }) => {
+      const response = await fetch(`/api/clients/${clientId}`, {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',
@@ -194,13 +176,30 @@ export default function ClientsPage() {
         throw new Error(errorData.error || 'Failed to update client');
       }
 
+      return response.json();
+    },
+    onSuccess: () => {
       toast.success('Client updated successfully');
       setEditingClient(null);
-      fetchClients(); // Refresh the list
-    } catch (err) {
-      console.error('Error updating client:', err);
-      toast.error(err instanceof Error ? err.message : 'Failed to update client');
-    }
+      queryClient.invalidateQueries({ queryKey: ['clients'] });
+    },
+    onError: (err: Error) => {
+      toast.error(err.message || 'Failed to update client');
+    },
+  });
+
+  const handleDeleteClient = async (clientId: string) => {
+    if (!confirm('Are you sure you want to delete this client?')) return;
+    deleteClientMutation.mutate(clientId);
+  };
+
+  const handleCreateClient = async (clientData: any) => {
+    createClientMutation.mutate(clientData);
+  };
+
+  const handleEditClient = async (clientData: any) => {
+    if (!editingClient) return;
+    updateClientMutation.mutate({ clientId: editingClient.id, clientData });
   };
 
   const handleStartEdit = (client: Client) => {
@@ -213,11 +212,54 @@ export default function ClientsPage() {
 
   if (loading && (!clients || clients.length === 0)) {
     return (
-      <div className="flex items-center justify-center min-h-[400px]">
-        <div className="flex items-center space-x-2">
-          <Loader2 className="w-6 h-6 animate-spin" />
-          <span>Loading clients...</span>
+      <div className="space-y-8">
+        {/* Stats Cards Shimmer */}
+        <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
+          {[1, 2, 3, 4].map((i) => (
+            <Card key={i} className="border-0 shadow-sm">
+              <CardContent className="p-6">
+                <div className="flex items-center space-x-3">
+                  <Skeleton className="h-10 w-10 rounded-lg" />
+                  <div className="flex-1 space-y-2">
+                    <Skeleton className="h-4 w-20" />
+                    <Skeleton className="h-8 w-16" />
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          ))}
         </div>
+        {/* Filters Shimmer */}
+        <Card className="border-0 shadow-sm">
+          <CardContent className="p-6">
+            <Skeleton className="h-10 w-full" />
+          </CardContent>
+        </Card>
+        {/* Clients List Shimmer */}
+        <Card className="border-0 shadow-sm">
+          <CardHeader>
+            <Skeleton className="h-6 w-32" />
+          </CardHeader>
+          <CardContent>
+            <div className="space-y-4">
+              {[1, 2, 3, 4, 5].map((i) => (
+                <div key={i} className="flex items-center justify-between p-4 bg-gray-50 rounded-lg">
+                  <div className="flex items-center space-x-4 flex-1">
+                    <Skeleton className="h-12 w-12 rounded-full" />
+                    <div className="flex-1 space-y-2">
+                      <Skeleton className="h-4 w-32" />
+                      <Skeleton className="h-3 w-48" />
+                    </div>
+                  </div>
+                  <div className="flex items-center space-x-4">
+                    <Skeleton className="h-6 w-24" />
+                    <Skeleton className="h-8 w-8 rounded" />
+                  </div>
+                </div>
+              ))}
+            </div>
+          </CardContent>
+        </Card>
       </div>
     );
   }
@@ -228,8 +270,8 @@ export default function ClientsPage() {
         <div className="text-center">
           <AlertCircle className="w-12 h-12 text-red-500 mx-auto mb-4" />
           <h3 className="text-lg font-semibold text-gray-900 mb-2">Error Loading Clients</h3>
-          <p className="text-gray-600 mb-4">{error}</p>
-          <Button onClick={fetchClients} variant="outline">
+          <p className="text-gray-600 mb-4">{error instanceof Error ? error.message : String(error)}</p>
+          <Button onClick={() => queryClient.invalidateQueries({ queryKey: ['clients'] })} variant="outline">
             Try Again
           </Button>
         </div>
@@ -383,9 +425,22 @@ export default function ClientsPage() {
         </CardHeader>
         <CardContent>
           {loading ? (
-            <div className="flex items-center justify-center py-8">
-              <Loader2 className="w-6 h-6 animate-spin mr-2" />
-              <span>Loading...</span>
+            <div className="space-y-4">
+              {[1, 2, 3].map((i) => (
+                <div key={i} className="flex items-center justify-between p-4 bg-gray-50 rounded-lg">
+                  <div className="flex items-center space-x-4 flex-1">
+                    <Skeleton className="h-12 w-12 rounded-full" />
+                    <div className="flex-1 space-y-2">
+                      <Skeleton className="h-4 w-32" />
+                      <Skeleton className="h-3 w-48" />
+                    </div>
+                  </div>
+                  <div className="flex items-center space-x-4">
+                    <Skeleton className="h-6 w-24" />
+                    <Skeleton className="h-8 w-8 rounded" />
+                  </div>
+                </div>
+              ))}
             </div>
           ) : clients.length > 0 ? (
             <div className="space-y-4">

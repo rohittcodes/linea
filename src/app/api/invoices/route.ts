@@ -11,6 +11,25 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
+    const userWorkspace = await prisma.workspace.findFirst({
+      where: {
+        members: {
+          some: {
+            userId: session.user.id,
+            role: { in: ['OWNER', 'ADMIN', 'MEMBER'] }
+          }
+        },
+        isActive: true
+      }
+    })
+
+    if (!userWorkspace) {
+      return NextResponse.json(
+        { error: 'No active workspace found' },
+        { status: 400 }
+      )
+    }
+
     const { searchParams } = new URL(request.url)
     const search = searchParams.get('search') || undefined
     const status = searchParams.get('status') as 'DRAFT' | 'SENT' | 'VIEWED' | 'PAID' | 'OVERDUE' | 'CANCELLED' | 'REFUNDED' | undefined
@@ -20,7 +39,7 @@ export async function GET(request: NextRequest) {
     const dateFrom = searchParams.get('dateFrom') ? new Date(searchParams.get('dateFrom')!) : undefined
     const dateTo = searchParams.get('dateTo') ? new Date(searchParams.get('dateTo')!) : undefined
 
-    const result = await getInvoices(session.user.id, {
+    const result = await getInvoices(session.user.id, userWorkspace.id, {
       search,
       status,
       clientId,
@@ -29,11 +48,16 @@ export async function GET(request: NextRequest) {
       dateFrom,
       dateTo
     })
-    
-    return NextResponse.json({
-      success: true,
-      data: result
-    })
+    // Attach a light flag for provisional IRN presence to each invoice
+    const withDemo = {
+      ...result,
+      invoices: result.invoices.map((inv: any) => ({
+        ...inv,
+        demoIrn: inv.demoIrn || null,
+        hasDemoIrn: Boolean(inv.demoIrn)
+      }))
+    }
+    return NextResponse.json({ success: true, data: withDemo })
   } catch (error) {
     console.error('Invoices GET API Error:', error)
     return NextResponse.json(

@@ -1,0 +1,7 @@
+ALTER TABLE "invoices"
+  ADD COLUMN IF NOT EXISTS "demo_irn" TEXT,
+  ADD COLUMN IF NOT EXISTS "demo_qr_png" TEXT,
+  ADD COLUMN IF NOT EXISTS "demo_irn_created_at" TIMESTAMP,
+  ADD COLUMN IF NOT EXISTS "irn_manual" TEXT,
+  ADD COLUMN IF NOT EXISTS "irn_manual_at" TIMESTAMP;
+

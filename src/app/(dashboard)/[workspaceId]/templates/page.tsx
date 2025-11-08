@@ -6,6 +6,10 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { InvoiceTemplate1 } from "@/components/invoices/InvoiceTemplate1";
 import { InvoiceTemplate2 } from "@/components/invoices/InvoiceTemplate2";
+import { InvoiceTemplate3 } from "@/components/invoices/InvoiceTemplate3";
+import { InvoiceTemplate4 } from "@/components/invoices/InvoiceTemplate4";
+import { InvoiceTemplate5 } from "@/components/invoices/InvoiceTemplate5";
+import { InvoiceTemplate6 } from "@/components/invoices/InvoiceTemplate6";
 import {
   Sheet,
   SheetContent,
@@ -68,7 +72,7 @@ const templates = [
     description: "Simple and clean design for modern businesses",
     category: "Minimal",
     popular: true,
-    preview: InvoiceTemplate1,
+    preview: InvoiceTemplate3,
   },
   {
     id: "template4",
@@ -76,7 +80,7 @@ const templates = [
     description: "Colorful and creative design for creative agencies",
     category: "Creative",
     popular: false,
-    preview: InvoiceTemplate2,
+    preview: InvoiceTemplate4,
   },
   {
     id: "template5",
@@ -84,7 +88,7 @@ const templates = [
     description: "Traditional invoice design with professional elements",
     category: "Classic",
     popular: false,
-    preview: InvoiceTemplate1,
+    preview: InvoiceTemplate5,
   },
   {
     id: "template6",
@@ -92,7 +96,7 @@ const templates = [
     description: "Contemporary design with gradient backgrounds",
     category: "Modern",
     popular: true,
-    preview: InvoiceTemplate2,
+    preview: InvoiceTemplate6,
   },
 ];
 

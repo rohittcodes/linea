@@ -32,18 +32,13 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
       },
     }),
     redirect: ({ url, baseUrl }) => {
-      console.log(`🔄 Redirect callback - url: ${url}, baseUrl: ${baseUrl}`);
-
       // Always redirect to /dashboard after successful authentication
       if (url.startsWith(baseUrl)) {
         const redirectUrl = `${baseUrl}/dashboard`;
-        console.log(`✅ Redirecting to: ${redirectUrl}`);
         return redirectUrl;
       }
-
-      console.log(`✅ Redirecting to baseUrl: ${baseUrl}`);
       return baseUrl;
     },
   },
-  debug: true,
+  debug: process.env.NODE_ENV === 'development',
 });

@@ -11,7 +11,12 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { MoreHorizontal, Eye, Edit, Download, Send, Plus, Trash2, CheckCircle, Clock, AlertCircle } from "lucide-react";
+import { MoreHorizontal, Eye, Edit, Download, Send, Plus, Trash2, CheckCircle, Clock, AlertCircle, Loader2 } from "lucide-react";
+import { Separator } from "@/components/ui/separator";
+import { toast } from "sonner";
+import { useState } from "react";
+import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -27,6 +32,8 @@ interface Invoice {
   status: "DRAFT" | "SENT" | "VIEWED" | "PAID" | "OVERDUE" | "CANCELLED" | "REFUNDED";
   date: string;
   dueDate: string;
+  demoIrn?: string | null;
+  hasDemoIrn?: boolean;
 }
 
 interface InvoiceListProps {
@@ -50,6 +57,95 @@ export function InvoiceList({
   onStatusChange,
   onCreate,
 }: InvoiceListProps) {
+  const queryClient = useQueryClient();
+  const [qrOpen, setQrOpen] = useState(false)
+  const [qrSrc, setQrSrc] = useState<string | null>(null)
+  
+  const fetchInvoiceMutation = useMutation({
+    mutationFn: async (invoiceId: string) => {
+      const res = await fetch(`/api/invoices/${invoiceId}`)
+      if (!res.ok) {
+        throw new Error('Failed to fetch invoice');
+      }
+      const json = await res.json()
+      return json?.data || {}
+    },
+    onSuccess: (data, invoiceId) => {
+      if (!data?.demoQrPng) {
+        toast.error('No provisional QR stored for this invoice')
+        return
+      }
+      setQrSrc(data.demoQrPng as string)
+      setQrOpen(true)
+    },
+    onError: (error: Error) => {
+      toast.error('Failed to open QR', { description: error.message })
+    },
+  });
+
+  const generateDemoIrnMutation = useMutation({
+    mutationFn: async (invoiceId: string) => {
+      const res = await fetch(`/api/einvoicing/demo/register/${invoiceId}`, { method: 'POST' })
+      const data = await res.json().catch(() => ({}))
+      if (!res.ok) {
+        throw new Error(data?.message || data?.error || 'Provisional IRN failed')
+      }
+      return data
+    },
+    onSuccess: (data) => {
+      toast.success('Provisional IRN generated', {
+        description: `DEMO-${String(data.demoIrn || '').slice(0, 12)}...`
+      })
+      queryClient.invalidateQueries({ queryKey: ['invoices'] })
+    },
+    onError: (error: Error) => {
+      const msg = error.message
+      if (msg.includes('missing_gstin')) {
+        toast.error('Add GSTINs before generating IRN', {
+          description: 'Save seller GSTIN in Settings and client GSTIN in the client details, then retry.',
+        })
+      } else if (msg.includes('no_lines')) {
+        toast.error('Add at least one line item to the invoice, then retry.')
+      } else if (msg.includes('invoice_not_found')) {
+        toast.error('Invoice not found. Refresh and try again.')
+      } else if (msg.startsWith('demo_mode_disabled')) {
+        toast.error('Enable demo mode (EINV_DEMO_MODE=true) and restart the server.')
+      } else {
+        toast.error('Provisional IRN failed', { description: msg })
+      }
+    },
+  });
+
+  const saveManualIrnMutation = useMutation({
+    mutationFn: async ({ invoiceId, irn }: { invoiceId: string; irn: string }) => {
+      const res = await fetch(`/api/einvoicing/manual/${invoiceId}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ irn })
+      })
+      const data = await res.json().catch(() => ({}))
+      if (!res.ok) {
+        throw new Error(data?.message || data?.error || 'Save IRN failed')
+      }
+      return data
+    },
+    onSuccess: () => {
+      toast.success('Official IRN saved')
+      queryClient.invalidateQueries({ queryKey: ['invoices'] })
+    },
+    onError: (error: Error) => {
+      toast.error('Save IRN failed', { description: error.message })
+    },
+  });
+
+  const copyProvisionalIrn = async (demoIrn: string | null | undefined) => {
+    try {
+      await navigator.clipboard.writeText(`DEMO-${(demoIrn || '').slice(0,64)}`)
+      toast.success('Provisional IRN copied')
+    } catch (e: any) {
+      toast.error('Copy failed', { description: String(e?.message || e) })
+    }
+  }
   const getStatusColor = (status: string) => {
     switch (status) {
       case "PAID":
@@ -87,6 +183,7 @@ export function InvoiceList({
   };
 
   return (
+    <>
     <Card className="w-full">
       <CardHeader className="pb-4">
         <div className="flex items-center justify-between">
@@ -132,8 +229,11 @@ export function InvoiceList({
                   key={invoice.id}
                   className="hover:bg-gray-50 transition-colors"
                 >
-                  <TableCell className="font-medium text-gray-900">
-                    #{invoice.number}
+                  <TableCell className="font-medium text-gray-900 flex items-center gap-2">
+                    <span>#{invoice.number}</span>
+                    {invoice.hasDemoIrn && (
+                      <Badge variant="outline" className="text-xs">DEMO IRN</Badge>
+                    )}
                   </TableCell>
                   <TableCell className="text-gray-700">
                     {invoice.client}
@@ -167,6 +267,33 @@ export function InvoiceList({
                         </Button>
                       </DropdownMenuTrigger>
                       <DropdownMenuContent align="end" className="w-56">
+                        {invoice.hasDemoIrn && (
+                          <>
+                            <DropdownMenuItem
+                              onClick={() => fetchInvoiceMutation.mutate(invoice.id)}
+                              disabled={fetchInvoiceMutation.isPending}
+                            >
+                              {fetchInvoiceMutation.isPending ? (
+                                <>
+                                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                                  Loading QR...
+                                </>
+                              ) : (
+                                <>
+                                  <Eye className="mr-2 h-4 w-4" />
+                                  View Provisional QR
+                                </>
+                              )}
+                            </DropdownMenuItem>
+                            <DropdownMenuItem
+                              onClick={() => copyProvisionalIrn(invoice.demoIrn)}
+                            >
+                              <CheckCircle className="mr-2 h-4 w-4" />
+                              Copy Provisional IRN
+                            </DropdownMenuItem>
+                            <Separator className="my-1" />
+                          </>
+                        )}
                         <DropdownMenuItem onClick={() => onView?.(invoice.id)}>
                           <Eye className="mr-2 h-4 w-4" />
                           View Invoice
@@ -190,6 +317,43 @@ export function InvoiceList({
                         <DropdownMenuItem onClick={() => onSend?.(invoice.id)}>
                           <Send className="mr-2 h-4 w-4" />
                           Send to Client
+                        </DropdownMenuItem>
+                        <Separator className="my-1" />
+                        <DropdownMenuItem
+                          onClick={() => generateDemoIrnMutation.mutate(invoice.id)}
+                          disabled={generateDemoIrnMutation.isPending}
+                        >
+                          {generateDemoIrnMutation.isPending ? (
+                            <>
+                              <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                              Generating...
+                            </>
+                          ) : (
+                            <>
+                              <CheckCircle className="mr-2 h-4 w-4" />
+                              Generate Provisional IRN
+                            </>
+                          )}
+                        </DropdownMenuItem>
+                        <DropdownMenuItem
+                          onClick={() => {
+                            const irn = prompt('Enter official IRN to store:')
+                            if (!irn) return
+                            saveManualIrnMutation.mutate({ invoiceId: invoice.id, irn })
+                          }}
+                          disabled={saveManualIrnMutation.isPending}
+                        >
+                          {saveManualIrnMutation.isPending ? (
+                            <>
+                              <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                              Saving...
+                            </>
+                          ) : (
+                            <>
+                              <AlertCircle className="mr-2 h-4 w-4" />
+                              Enter Official IRN
+                            </>
+                          )}
                         </DropdownMenuItem>
                         
                         {/* Status Change Submenu */}
@@ -280,5 +444,39 @@ export function InvoiceList({
         )}
       </CardContent>
     </Card>
+
+    <Dialog open={qrOpen} onOpenChange={setQrOpen}>
+      <DialogContent className="sm:max-w-md">
+        <DialogHeader>
+          <DialogTitle>Provisional IRN QR</DialogTitle>
+        </DialogHeader>
+        <div className="flex items-center justify-center py-2">
+          {qrSrc ? (
+            // eslint-disable-next-line @next/next/no-img-element
+            <img src={qrSrc} alt="Provisional QR" className="w-56 h-56 border rounded" />
+          ) : (
+            <div className="text-sm text-gray-500">No QR available</div>
+          )}
+        </div>
+        <div className="flex justify-end gap-2">
+          <Button
+            variant="outline"
+            onClick={async () => {
+              try {
+                if (!qrSrc) return
+                await navigator.clipboard.writeText(qrSrc)
+                toast.success('QR image copied (data URL)')
+              } catch (e: any) {
+                toast.error('Copy failed', { description: String(e?.message || e) })
+              }
+            }}
+          >
+            Copy QR
+          </Button>
+          <Button onClick={() => setQrOpen(false)}>Close</Button>
+        </div>
+      </DialogContent>
+    </Dialog>
+    </>
   );
 }

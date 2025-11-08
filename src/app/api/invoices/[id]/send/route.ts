@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { auth } from '@/lib/auth';
 import { prisma } from '@/lib/db';
 import { sendInvoiceEmail } from '@/lib/email';
-import { generateInvoicePDF } from '@/lib/pdf';
+import { generateInvoicePDFByTemplate } from '@/lib/pdf';
 import { renderToBuffer } from '@react-pdf/renderer';
 
 export async function POST(
@@ -30,6 +30,7 @@ export async function POST(
         client: true,
         lineItems: true,
         user: true,
+        template: true,
       },
     });
 
@@ -40,7 +41,7 @@ export async function POST(
     // Generate PDF if requested
     let pdfBuffer: Buffer | undefined;
     if (includePDF) {
-      const pdfDocument = generateInvoicePDF(invoice);
+      const pdfDocument = await generateInvoicePDFByTemplate(invoice);
       pdfBuffer = await renderToBuffer(pdfDocument);
     }
 

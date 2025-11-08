@@ -340,6 +340,21 @@ export default function SettingsPage() {
                   }
                 />
               </div>
+
+              <div>
+                <Label htmlFor="gstin">GSTIN (Tax Number)</Label>
+                <Input
+                  id="gstin"
+                  value={settings.preferences.taxNumber || ''}
+                  onChange={(e) =>
+                    setSettings({
+                      ...settings,
+                      preferences: { ...settings.preferences, taxNumber: e.target.value }
+                    })
+                  }
+                  placeholder="27ABCDE1234F1Z5"
+                />
+              </div>
             </CardContent>
           </Card>
 

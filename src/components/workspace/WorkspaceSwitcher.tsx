@@ -1,7 +1,8 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import { useRouter } from "next/navigation";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { CreateWorkspaceModal } from "./CreateWorkspaceModal";
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
@@ -20,6 +21,7 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from "@/components/ui/tooltip";
+import { Skeleton } from "@/components/ui/skeleton";
 import {
   Building2,
   ChevronDown,
@@ -39,82 +41,60 @@ interface Workspace {
   subscriptionStatus: "FREE" | "BASIC" | "PRO" | "ENTERPRISE";
 }
 
+async function fetchWorkspacesData() {
+  const response = await fetch('/api/workspaces');
+  if (!response.ok) {
+    throw new Error('Failed to fetch workspaces');
+  }
+  const data = await response.json();
+  return data.data || [];
+}
+
+async function createDefaultWorkspace() {
+  const response = await fetch('/api/seed-workspace', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+  });
+  
+  if (!response.ok) {
+    throw new Error('Failed to create default workspace');
+  }
+}
+
 export function WorkspaceSwitcher() {
   const router = useRouter();
-  const [workspaces, setWorkspaces] = useState<Workspace[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+  const queryClient = useQueryClient();
   const [showCreateModal, setShowCreateModal] = useState(false);
-  const activeWorkspace = workspaces.find(w => w.isActive) || workspaces[0];
 
-  useEffect(() => {
-    fetchWorkspaces();
-  }, []);
-
-  const fetchWorkspaces = async () => {
-    try {
-      setLoading(true);
-      const response = await fetch('/api/workspaces');
-      if (!response.ok) {
-        throw new Error('Failed to fetch workspaces');
-      }
-      const data = await response.json();
-      
-      if (data.data && data.data.length > 0) {
-        setWorkspaces(data.data);
-      } else {
+  const { data: workspaces = [], isLoading: loading, error } = useQuery<Workspace[]>({
+    queryKey: ['workspaces'],
+    queryFn: async () => {
+      const data = await fetchWorkspacesData();
+      if (data.length === 0) {
         // Create default workspace if none exists
         await createDefaultWorkspace();
-        // Fetch workspaces again
-        const retryResponse = await fetch('/api/workspaces');
-        if (retryResponse.ok) {
-          const retryData = await retryResponse.json();
-          setWorkspaces(retryData.data || []);
-        }
+        // Fetch again after creation
+        return await fetchWorkspacesData();
       }
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'An error occurred');
-      // Fallback to default workspace if API fails
-      setWorkspaces([{
-        id: "default",
-        name: "Personal Workspace",
-        type: "PERSONAL",
-        isActive: true,
-        subscriptionStatus: "FREE"
-      }]);
-    } finally {
-      setLoading(false);
-    }
-  };
+      return data;
+    },
+    retry: 1,
+    // Fallback data if API fails
+    placeholderData: [{
+      id: "default",
+      name: "Personal Workspace",
+      type: "PERSONAL" as const,
+      isActive: true,
+      subscriptionStatus: "FREE" as const
+    }],
+  });
 
-  const createDefaultWorkspace = async () => {
-    try {
-      const response = await fetch('/api/seed-workspace', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-      });
-      
-      if (!response.ok) {
-        throw new Error('Failed to create default workspace');
-      }
-    } catch (err) {
-      console.error('Error creating default workspace:', err);
-    }
-  };
+  const activeWorkspace = workspaces.find(w => w.isActive) || workspaces[0];
 
-  const switchWorkspace = async (workspaceId: string) => {
-    try {
-      // Update local state immediately for better UX
-      setWorkspaces(prev => 
-        prev.map(w => ({
-          ...w,
-          isActive: w.id === workspaceId
-        }))
-      );
-
-      // Make API call to update active workspace
+  const switchWorkspaceMutation = useMutation({
+    mutationFn: async (workspaceId: string) => {
       const response = await fetch(`/api/workspaces/${workspaceId}/activate`, {
         method: 'PATCH',
         headers: {
@@ -126,17 +106,19 @@ export function WorkspaceSwitcher() {
         throw new Error('Failed to switch workspace');
       }
 
+      // Invalidate and refetch workspaces
+      await queryClient.invalidateQueries({ queryKey: ['workspaces'] });
+      
       // Navigate to the workspace-specific dashboard
       router.push(`/${workspaceId}/dashboard`);
+    },
+  });
+
+  const switchWorkspace = async (workspaceId: string) => {
+    try {
+      await switchWorkspaceMutation.mutateAsync(workspaceId);
     } catch (err) {
       console.error('Error switching workspace:', err);
-      // Revert state if API call fails
-      setWorkspaces(prev => 
-        prev.map(w => ({
-          ...w,
-          isActive: w.id === activeWorkspace?.id
-        }))
-      );
     }
   };
 
@@ -167,15 +149,18 @@ export function WorkspaceSwitcher() {
   };
 
   const handleCreateSuccess = () => {
-    fetchWorkspaces(); // Refresh the workspaces list
+    queryClient.invalidateQueries({ queryKey: ['workspaces'] }); // Refresh the workspaces list
   };
 
   if (loading) {
     return (
       <Button variant="ghost" className="w-full justify-between px-2 py-2 h-auto" disabled>
-        <div className="flex items-center gap-2">
-          <Loader2 className="w-4 h-4 animate-spin" />
-          <span className="text-sm">Loading...</span>
+        <div className="flex items-center gap-2 flex-1">
+          <Skeleton className="h-8 w-8 rounded-full" />
+          <div className="flex-1 space-y-1">
+            <Skeleton className="h-4 w-24" />
+            <Skeleton className="h-3 w-16" />
+          </div>
         </div>
       </Button>
     );

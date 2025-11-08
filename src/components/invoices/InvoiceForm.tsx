@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { useMutation } from "@tanstack/react-query";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -17,7 +18,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { Trash2, Plus, Save, Send, Mail, FileText, Palette, Eye } from "lucide-react";
+import { Trash2, Plus, Save, Send, Mail, FileText, Palette, Eye, Loader2 } from "lucide-react";
 import { TemplatePreview } from "@/components/templates/TemplatePreview";
 import { toast } from "sonner";
 
@@ -133,17 +134,39 @@ export function InvoiceForm({
 
   const { subtotal, tax, total } = calculateTotals();
 
-  const handleSave = async () => {
-    try {
+  const createInvoicePayload = () => ({
+    invoiceNumber: formData.invoiceNumber,
+    title: `Invoice ${formData.invoiceNumber}`,
+    issueDate: formData.date,
+    dueDate: formData.dueDate,
+    status: 'DRAFT' as const,
+    subtotal: subtotal,
+    taxAmount: tax,
+    total: total,
+    notes: formData.notes,
+    templateName: formData.selectedTemplate,
+    client: {
+      name: formData.client.name,
+      email: formData.client.email,
+      address: formData.client.address,
+    },
+    lineItems: formData.items.map(item => ({
+      description: item.description,
+      quantity: item.quantity,
+      unitPrice: item.rate,
+      amount: item.amount,
+    })),
+  });
+
+  const saveInvoiceMutation = useMutation({
+    mutationFn: async () => {
       // Validate required fields
       if (!formData.client.name || !formData.client.email) {
-        toast.error('Please fill in client information');
-        return;
+        throw new Error('Please fill in client information');
       }
 
       if (!formData.items.length || formData.items.some(item => !item.description)) {
-        toast.error('Please add at least one item with description');
-        return;
+        throw new Error('Please add at least one item with description');
       }
 
       const response = await fetch('/api/invoices', {
@@ -151,28 +174,7 @@ export function InvoiceForm({
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({
-          invoiceNumber: formData.invoiceNumber,
-          title: `Invoice ${formData.invoiceNumber}`,
-          issueDate: formData.date,
-          dueDate: formData.dueDate,
-          status: 'DRAFT',
-          subtotal: subtotal,
-          taxAmount: tax,
-          total: total,
-          notes: formData.notes,
-          client: {
-            name: formData.client.name,
-            email: formData.client.email,
-            address: formData.client.address,
-          },
-          lineItems: formData.items.map(item => ({
-            description: item.description,
-            quantity: item.quantity,
-            unitPrice: item.rate,
-            amount: item.amount,
-          })),
-        }),
+        body: JSON.stringify(createInvoicePayload()),
       });
 
       if (!response.ok) {
@@ -180,60 +182,57 @@ export function InvoiceForm({
         throw new Error(errorData.error || 'Failed to create invoice');
       }
 
-      const result = await response.json();
+      return response.json();
+    },
+    onSuccess: () => {
       toast.success('Invoice saved as draft successfully!');
       onSave?.(formData);
-    } catch (error) {
-      console.error('Error creating invoice:', error);
-      toast.error(error instanceof Error ? error.message : 'Failed to create invoice');
-    }
-  };
-
-  const [sending, setSending] = useState(false);
-  const [showEmailDialog, setShowEmailDialog] = useState(false);
-  const [showTemplatePreview, setShowTemplatePreview] = useState(false);
-  const [emailData, setEmailData] = useState({
-    recipientEmail: formData.client.email,
-    includePDF: true,
-    customMessage: '',
+    },
+    onError: (error: Error) => {
+      toast.error(error.message || 'Failed to create invoice');
+    },
   });
 
-  const handleSend = async () => {
-    setShowEmailDialog(true);
-  };
+  const sendInvoiceMutation = useMutation({
+    mutationFn: async ({ invoiceId, emailData }: { invoiceId: string; emailData: typeof emailState }) => {
+      const response = await fetch(`/api/invoices/${invoiceId}/send`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          recipientEmail: emailData.recipientEmail,
+          includePDF: emailData.includePDF,
+          customMessage: emailData.customMessage,
+        }),
+      });
 
-  const handleSendEmail = async () => {
-    try {
-      setSending(true);
-      
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        throw new Error(errorData.error || 'Failed to send invoice');
+      }
+
+      return response.json();
+    },
+    onSuccess: () => {
+      setShowEmailDialog(false);
+      toast.success('Invoice sent successfully!');
+      onSend?.({ ...formData, status: "SENT" });
+    },
+    onError: (error: Error) => {
+      toast.error(error.message || 'Failed to send invoice');
+    },
+  });
+
+  const createAndSendMutation = useMutation({
+    mutationFn: async ({ emailData }: { emailData: typeof emailState }) => {
       // First create the invoice
       const createResponse = await fetch('/api/invoices', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({
-          invoiceNumber: formData.invoiceNumber,
-          title: `Invoice ${formData.invoiceNumber}`,
-          issueDate: formData.date,
-          dueDate: formData.dueDate,
-          status: 'DRAFT',
-          subtotal: subtotal,
-          taxAmount: tax,
-          total: total,
-          notes: formData.notes,
-          client: {
-            name: formData.client.name,
-            email: formData.client.email,
-            address: formData.client.address,
-          },
-          lineItems: formData.items.map(item => ({
-            description: item.description,
-            quantity: item.quantity,
-            unitPrice: item.rate,
-            amount: item.amount,
-          })),
-        }),
+        body: JSON.stringify(createInvoicePayload()),
       });
 
       if (!createResponse.ok) {
@@ -262,15 +261,45 @@ export function InvoiceForm({
         throw new Error(errorData.error || 'Failed to send invoice');
       }
 
+      return sendResponse.json();
+    },
+    onSuccess: () => {
       setShowEmailDialog(false);
       toast.success('Invoice sent successfully!');
       onSend?.({ ...formData, status: "SENT" });
-    } catch (error) {
-      console.error('Error creating and sending invoice:', error);
-      toast.error(error instanceof Error ? error.message : 'Failed to create and send invoice');
-    } finally {
-      setSending(false);
-    }
+    },
+    onError: (error: Error) => {
+      toast.error(error.message || 'Failed to create and send invoice');
+    },
+  });
+
+  const [showEmailDialog, setShowEmailDialog] = useState(false);
+  const [showTemplatePreview, setShowTemplatePreview] = useState(false);
+  
+  type EmailState = {
+    recipientEmail: string;
+    includePDF: boolean;
+    customMessage: string;
+  };
+
+  const emailState = {
+    recipientEmail: formData.client.email,
+    includePDF: true,
+    customMessage: '',
+  };
+
+  const [emailData, setEmailData] = useState<EmailState>(emailState);
+
+  const handleSave = () => {
+    saveInvoiceMutation.mutate();
+  };
+
+  const handleSend = () => {
+    setShowEmailDialog(true);
+  };
+
+  const handleSendEmail = () => {
+    createAndSendMutation.mutate({ emailData });
   };
 
   return (
@@ -623,13 +652,27 @@ export function InvoiceForm({
               Cancel
             </Button>
             <div className="space-x-4">
-              <Button onClick={handleSave} variant="outline">
-                <Save className="w-4 h-4 mr-2" />
-                Save Draft
+              <Button 
+                onClick={handleSave} 
+                variant="outline"
+                disabled={saveInvoiceMutation.isPending}
+              >
+                {saveInvoiceMutation.isPending ? (
+                  <>
+                    <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                    Saving...
+                  </>
+                ) : (
+                  <>
+                    <Save className="w-4 h-4 mr-2" />
+                    Save Draft
+                  </>
+                )}
               </Button>
               <Button
                 onClick={handleSend}
                 className="bg-[#2388ff] hover:bg-blue-600"
+                disabled={saveInvoiceMutation.isPending}
               >
                 <Send className="w-4 h-4 mr-2" />
                 Send Invoice
@@ -703,18 +746,18 @@ export function InvoiceForm({
             <Button
               variant="outline"
               onClick={() => setShowEmailDialog(false)}
-              disabled={sending}
+              disabled={createAndSendMutation.isPending}
             >
               Cancel
             </Button>
             <Button
               onClick={handleSendEmail}
-              disabled={sending || !emailData.recipientEmail}
+              disabled={createAndSendMutation.isPending || !emailData.recipientEmail}
               className="bg-[#2388ff] hover:bg-blue-600"
             >
-              {sending ? (
+              {createAndSendMutation.isPending ? (
                 <>
-                  <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
+                  <Loader2 className="w-4 h-4 mr-2 animate-spin" />
                   Sending...
                 </>
               ) : (

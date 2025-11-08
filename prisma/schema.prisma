@@ -259,6 +259,13 @@ model Invoice {
   createdAt DateTime @default(now()) @map("created_at")
   updatedAt DateTime @updatedAt @map("updated_at")
 
+  // Demo e-invoicing (provisional IRN)
+  demoIrn           String?   @map("demo_irn")
+  demoQrPng         String?   @db.Text @map("demo_qr_png")
+  demoIrnCreatedAt  DateTime? @map("demo_irn_created_at")
+  irnManual         String?   @map("irn_manual")
+  irnManualAt       DateTime? @map("irn_manual_at")
+
   // Relations
   user            User              @relation(fields: [userId], references: [id], onDelete: Cascade)
   client          Client            @relation(fields: [clientId], references: [id])

@@ -33,6 +33,7 @@ import {
   SidebarTrigger,
 } from "@/components/ui/sidebar";
 import Image from "next/image";
+import { ChatDock } from "@/components/ai/ChatDock";
 
 const navigation = [
   { name: "Dashboard", href: "/dashboard", icon: BarChart3 },
@@ -178,6 +179,8 @@ export default function WorkspaceLayout({
               {children}
             </div>
           </main>
+          {/* Secure AI Chat inside dashboard only */}
+          <ChatDock />
         </SidebarInset>
       </div>
     </SidebarProvider>

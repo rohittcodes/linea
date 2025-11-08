@@ -64,7 +64,14 @@ A modern, full-featured invoice management system built with Next.js, Prisma, Po
    NEXTAUTH_URL="http://localhost:3001"
    NEXTAUTH_SECRET="your-nextauth-secret-key-here"
    
-   # Email Configuration (for NextAuth email provider)
+    # Google Gemini (AI SDK)
+    GOOGLE_GENERATIVE_AI_API_KEY="your-google-api-key"
+
+    # Provisional IRN (Demo Mode)
+    # Gate all demo IRN generation with this flag (do NOT enable in production)
+    EINV_DEMO_MODE="false"
+
+    # Email Configuration (for NextAuth email provider)
    EMAIL_SERVER_USER="your-email@gmail.com"
    EMAIL_SERVER_PASSWORD="your-app-password"
    EMAIL_FROM="noreply@yourdomain.com"
@@ -90,7 +97,18 @@ A modern, full-featured invoice management system built with Next.js, Prisma, Po
 
 6. **Open your browser**
    
-   Navigate to [http://localhost:3001](http://localhost:3001) to see the application.
+    Navigate to [http://localhost:3001](http://localhost:3001) to see the application.
+
+### AI SDK (Gemini) UI
+
+- Page: `/ai` — chat with the Gemini model. Requires `GOOGLE_GENERATIVE_AI_API_KEY`.
+
+### Provisional IRN (Demo) — No GSP required
+
+- Set `EINV_DEMO_MODE=true` to enable demo IRN generation.
+- From Invoices → menu:
+  - Generate Provisional IRN: creates a deterministic provisional IRN and QR (watermarked NOT GOVERNMENT-REGISTERED).
+  - Enter Official IRN: paste the real IRN when you receive it later.
 
 ### First Time Setup
 

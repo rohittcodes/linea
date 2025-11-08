@@ -253,7 +253,7 @@ export async function deleteClient(clientId: string, userId: string) {
 // INVOICE MANAGEMENT
 // ============================================================================
 
-export async function getInvoices(userId: string, options: {
+export async function getInvoices(userId: string, workspaceId: string, options: {
   status?: 'DRAFT' | 'SENT' | 'VIEWED' | 'PAID' | 'OVERDUE' | 'CANCELLED' | 'REFUNDED'
   clientId?: string
   search?: string
@@ -267,6 +267,7 @@ export async function getInvoices(userId: string, options: {
 
   const where: Prisma.InvoiceWhereInput = {
     userId,
+    workspaceId,
     ...(status && { status }),
     ...(clientId && { clientId }),
     ...(search && {
@@ -314,9 +315,9 @@ export async function getInvoices(userId: string, options: {
   }
 }
 
-export async function getInvoice(invoiceId: string, userId: string) {
+export async function getInvoice(invoiceId: string, userId: string, workspaceId: string) {
   return prisma.invoice.findFirst({
-    where: { id: invoiceId, userId },
+    where: { id: invoiceId, userId, workspaceId },
     include: {
       client: true,
       template: true,
@@ -381,22 +382,22 @@ export async function createInvoice(userId: string, workspaceId: string, data: {
   })
 }
 
-export async function updateInvoice(invoiceId: string, userId: string, data: any) {
+export async function updateInvoice(invoiceId: string, userId: string, workspaceId: string, data: any) {
   return prisma.invoice.updateMany({
-    where: { id: invoiceId, userId },
+    where: { id: invoiceId, userId, workspaceId },
     data
   })
 }
 
-export async function deleteInvoice(invoiceId: string, userId: string) {
+export async function deleteInvoice(invoiceId: string, userId: string, workspaceId: string) {
   return prisma.invoice.deleteMany({
-    where: { id: invoiceId, userId }
+    where: { id: invoiceId, userId, workspaceId }
   })
 }
 
-export async function sendInvoice(invoiceId: string, userId: string) {
+export async function sendInvoice(invoiceId: string, userId: string, workspaceId: string) {
   return prisma.invoice.updateMany({
-    where: { id: invoiceId, userId },
+    where: { id: invoiceId, userId, workspaceId },
     data: {
       status: 'SENT',
       sentAt: new Date()

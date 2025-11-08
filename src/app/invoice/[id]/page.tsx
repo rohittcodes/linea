@@ -1,9 +1,11 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import { useQuery } from "@tanstack/react-query";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { Skeleton } from "@/components/ui/skeleton";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Download, Mail, ArrowLeft } from "lucide-react";
 import Link from "next/link";
@@ -51,10 +53,16 @@ interface InvoicePageProps {
   params: Promise<{ id: string }>;
 }
 
+async function fetchInvoiceData(invoiceId: string) {
+  const response = await fetch(`/api/invoice/${invoiceId}/public`);
+  if (!response.ok) {
+    throw new Error('Invoice not found');
+  }
+  const data = await response.json();
+  return data.invoice as Invoice;
+}
+
 export default function InvoicePage({ params }: InvoicePageProps) {
-  const [invoice, setInvoice] = useState<Invoice | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
   const [invoiceId, setInvoiceId] = useState<string | null>(null);
 
   useEffect(() => {
@@ -65,27 +73,12 @@ export default function InvoicePage({ params }: InvoicePageProps) {
     getInvoiceId();
   }, [params]);
 
-  useEffect(() => {
-    if (invoiceId) {
-      fetchInvoice();
-    }
-  }, [invoiceId]);
-
-  const fetchInvoice = async () => {
-    try {
-      setLoading(true);
-      const response = await fetch(`/api/invoice/${invoiceId}/public`);
-      if (!response.ok) {
-        throw new Error('Invoice not found');
-      }
-      const data = await response.json();
-      setInvoice(data.invoice);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to load invoice');
-    } finally {
-      setLoading(false);
-    }
-  };
+  const { data: invoice, isLoading: loading, error } = useQuery<Invoice>({
+    queryKey: ['invoice', 'public', invoiceId],
+    queryFn: () => fetchInvoiceData(invoiceId!),
+    enabled: !!invoiceId,
+    retry: 1,
+  });
 
   const formatCurrency = (amount: number) => {
     return new Intl.NumberFormat('en-US', {
@@ -117,21 +110,130 @@ export default function InvoicePage({ params }: InvoicePageProps) {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
-        <div className="text-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto"></div>
-          <p className="mt-4 text-gray-600">Loading invoice...</p>
+      <div className="min-h-screen bg-gray-50 py-8">
+        <div className="max-w-4xl mx-auto px-4">
+          {/* Header Shimmer */}
+          <div className="mb-8">
+            <Skeleton className="h-10 w-24 mb-4" />
+            <div className="flex justify-between items-start">
+              <div className="space-y-2">
+                <Skeleton className="h-8 w-32" />
+                <Skeleton className="h-6 w-40" />
+              </div>
+              <div className="text-right space-y-2">
+                <Skeleton className="h-6 w-20 ml-auto" />
+                <Skeleton className="h-4 w-32 ml-auto" />
+              </div>
+            </div>
+          </div>
+
+          {/* Company and Client Info Shimmer */}
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 mb-8">
+            <Card>
+              <CardHeader>
+                <Skeleton className="h-6 w-16" />
+              </CardHeader>
+              <CardContent className="space-y-2">
+                <Skeleton className="h-5 w-32" />
+                <Skeleton className="h-4 w-48" />
+                <Skeleton className="h-4 w-40" />
+                <Skeleton className="h-4 w-36" />
+              </CardContent>
+            </Card>
+            <Card>
+              <CardHeader>
+                <Skeleton className="h-6 w-20" />
+              </CardHeader>
+              <CardContent className="space-y-2">
+                <Skeleton className="h-5 w-28" />
+                <Skeleton className="h-4 w-52" />
+                <Skeleton className="h-4 w-44" />
+                <Skeleton className="h-4 w-38" />
+              </CardContent>
+            </Card>
+          </div>
+
+          {/* Invoice Details Shimmer */}
+          <Card className="mb-8">
+            <CardHeader>
+              <Skeleton className="h-6 w-32" />
+            </CardHeader>
+            <CardContent>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Skeleton className="h-4 w-24" />
+                  <Skeleton className="h-5 w-32" />
+                </div>
+                <div className="space-y-2">
+                  <Skeleton className="h-4 w-24" />
+                  <Skeleton className="h-5 w-32" />
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* Items Table Shimmer */}
+          <Card className="mb-8">
+            <CardHeader>
+              <Skeleton className="h-6 w-20" />
+            </CardHeader>
+            <CardContent>
+              <div className="space-y-4">
+                {/* Table Header */}
+                <div className="grid grid-cols-4 gap-4 pb-2 border-b">
+                  <Skeleton className="h-5 w-24" />
+                  <Skeleton className="h-5 w-16 mx-auto" />
+                  <Skeleton className="h-5 w-16 ml-auto" />
+                  <Skeleton className="h-5 w-16 ml-auto" />
+                </div>
+                {/* Table Rows */}
+                {[1, 2, 3].map((i) => (
+                  <div key={i} className="grid grid-cols-4 gap-4 py-3 border-b">
+                    <div className="space-y-2">
+                      <Skeleton className="h-4 w-full" />
+                      <Skeleton className="h-3 w-3/4" />
+                    </div>
+                    <Skeleton className="h-4 w-8 mx-auto" />
+                    <Skeleton className="h-4 w-20 ml-auto" />
+                    <Skeleton className="h-4 w-20 ml-auto" />
+                  </div>
+                ))}
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* Totals Shimmer */}
+          <Card className="mb-8">
+            <CardContent className="pt-6">
+              <div className="flex justify-end">
+                <div className="w-64 space-y-3">
+                  <div className="flex justify-between">
+                    <Skeleton className="h-4 w-20" />
+                    <Skeleton className="h-4 w-24" />
+                  </div>
+                  <div className="flex justify-between">
+                    <Skeleton className="h-4 w-16" />
+                    <Skeleton className="h-4 w-20" />
+                  </div>
+                  <div className="flex justify-between border-t pt-2">
+                    <Skeleton className="h-6 w-16" />
+                    <Skeleton className="h-6 w-28" />
+                  </div>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
         </div>
       </div>
     );
   }
 
-  if (error || !invoice) {
+  if (error || (!loading && !invoice)) {
     return (
       <div className="min-h-screen bg-gray-50 flex items-center justify-center">
         <div className="text-center">
           <h1 className="text-2xl font-bold text-gray-900 mb-4">Invoice Not Found</h1>
-          <p className="text-gray-600 mb-6">{error || 'The invoice you are looking for does not exist.'}</p>
+          <p className="text-gray-600 mb-6">{error instanceof Error ? error.message : 'The invoice you are looking for does not exist.'}</p>
           <Link href="/">
             <Button>
               <ArrowLeft className="w-4 h-4 mr-2" />
@@ -141,6 +243,10 @@ export default function InvoicePage({ params }: InvoicePageProps) {
         </div>
       </div>
     );
+  }
+
+  if (!invoice) {
+    return null;
   }
 
   return (

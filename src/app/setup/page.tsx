@@ -3,63 +3,86 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { useSession } from "next-auth/react";
+import { useMutation } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Skeleton } from "@/components/ui/skeleton";
 import { toast } from "sonner";
 import { Building2, Loader2 } from "lucide-react";
 
 export default function SetupPage() {
   const router = useRouter();
-  const { data: session } = useSession();
-  const [isLoading, setIsLoading] = useState(false);
+  const { data: session, status: sessionStatus } = useSession();
   const [formData, setFormData] = useState({
     name: "",
     description: "",
     email: session?.user?.email || "",
   });
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setIsLoading(true);
-
-    try {
+  const createWorkspaceMutation = useMutation({
+    mutationFn: async (workspaceData: { name: string; description: string; type: string }) => {
       const response = await fetch('/api/workspaces', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({
-          name: formData.name,
-          description: formData.description,
-          type: 'PERSONAL',
-        }),
+        body: JSON.stringify(workspaceData),
       });
 
-      if (response.ok) {
-        const data = await response.json();
-        toast.success('Workspace created successfully!');
-        router.replace(`/${data.data.id}/dashboard`);
-      } else {
+      if (!response.ok) {
         const error = await response.json();
-        toast.error(error.error || 'Failed to create workspace');
+        throw new Error(error.error || 'Failed to create workspace');
       }
-    } catch (error) {
-      console.error('Error creating workspace:', error);
-      toast.error('Failed to create workspace');
-    } finally {
-      setIsLoading(false);
-    }
+
+      return response.json();
+    },
+    onSuccess: (data) => {
+      toast.success('Workspace created successfully!');
+      router.replace(`/${data.data.id}/dashboard`);
+    },
+    onError: (error: Error) => {
+      toast.error(error.message || 'Failed to create workspace');
+    },
+  });
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    createWorkspaceMutation.mutate({
+      name: formData.name,
+      description: formData.description,
+      type: 'PERSONAL',
+    });
   };
 
-  if (!session) {
+  if (sessionStatus === 'loading') {
     return (
-      <div className="flex items-center justify-center min-h-screen">
-        <div className="flex items-center space-x-2">
-          <Loader2 className="w-6 h-6 animate-spin" />
-          <span>Loading...</span>
-        </div>
+      <div className="min-h-screen flex items-center justify-center bg-background py-12 px-4 sm:px-6 lg:px-8">
+        <Card className="w-full max-w-md">
+          <CardHeader className="space-y-1 text-center">
+            <Skeleton className="mx-auto mb-4 h-12 w-12 rounded-full" />
+            <Skeleton className="h-7 w-48 mx-auto" />
+            <Skeleton className="h-4 w-64 mx-auto" />
+          </CardHeader>
+          <CardContent>
+            <div className="space-y-4">
+              <div className="space-y-2">
+                <Skeleton className="h-4 w-32" />
+                <Skeleton className="h-10 w-full" />
+              </div>
+              <div className="space-y-2">
+                <Skeleton className="h-4 w-40" />
+                <Skeleton className="h-10 w-full" />
+              </div>
+              <div className="space-y-2">
+                <Skeleton className="h-4 w-16" />
+                <Skeleton className="h-10 w-full" />
+              </div>
+              <Skeleton className="h-10 w-full" />
+            </div>
+          </CardContent>
+        </Card>
       </div>
     );
   }
@@ -86,7 +109,7 @@ export default function SetupPage() {
                 placeholder="My Business"
                 value={formData.name}
                 onChange={(e) => setFormData(prev => ({ ...prev, name: e.target.value }))}
-                disabled={isLoading}
+                disabled={createWorkspaceMutation.isPending}
                 required
               />
             </div>
@@ -98,7 +121,7 @@ export default function SetupPage() {
                 placeholder="Brief description of your business"
                 value={formData.description}
                 onChange={(e) => setFormData(prev => ({ ...prev, description: e.target.value }))}
-                disabled={isLoading}
+                disabled={createWorkspaceMutation.isPending}
               />
             </div>
             <div className="space-y-2">
@@ -108,12 +131,12 @@ export default function SetupPage() {
                 type="email"
                 value={formData.email}
                 onChange={(e) => setFormData(prev => ({ ...prev, email: e.target.value }))}
-                disabled={isLoading}
+                disabled={createWorkspaceMutation.isPending}
                 required
               />
             </div>
-            <Button type="submit" className="w-full" disabled={isLoading}>
-              {isLoading ? (
+            <Button type="submit" className="w-full" disabled={createWorkspaceMutation.isPending}>
+              {createWorkspaceMutation.isPending ? (
                 <>
                   <Loader2 className="w-4 h-4 mr-2 animate-spin" />
                   Creating Workspace...
